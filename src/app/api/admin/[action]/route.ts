@@ -1,9 +1,13 @@
 import { after } from "next/server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { dateSchema, dateRange, indiaToday } from "@/data/booking";
 import { AppError, authClient, failure, input, limit, reply } from "@/lib/booking-server";
 import { adminSession } from "@/lib/admin-server";
 import { notifyBooking } from "@/lib/booking-notification";
+import { defaultMenuServices, groomServiceId, menuServiceFields, mergeMenuServices, type MenuServiceOverride } from "@/lib/menu-services";
+import { getManagedMenuServices, menuDatabaseError } from "@/lib/menu-services-server";
+import { menuServiceInput, menuServiceUpdate } from "@/lib/menu-service-input";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ action: string }> };
@@ -17,6 +21,7 @@ export async function GET(request: Request, context: Context) {
       return reply({ok:true});
     }
     const {auth} = await adminSession();
+    if (action === "services") return reply({ services: await getManagedMenuServices(auth) });
     const params = new URL(request.url).searchParams;
     if (action === "booking") {
       const id = z.uuid().safeParse(params.get("id"));
@@ -92,6 +97,27 @@ export async function POST(request: Request, context: Context) {
       return reply({ok:true});
     }
     const {auth}=await adminSession();
+    if (action === "service-create" || action === "service-update") {
+      const parsed = (action === "service-update" ? menuServiceUpdate : menuServiceInput).safeParse(body);
+      if (!parsed.success) throw new AppError("INVALID_DETAILS");
+      const values = parsed.data;
+      const id = "id" in values ? String(values.id) : "custom-" + randomUUID();
+      const catalogue = await getManagedMenuServices(auth);
+      const existing = catalogue.find(service => service.id === id);
+      if (action === "service-update" && (!existing || existing.audiences.includes("children"))) throw new AppError("NOT_FOUND", 404);
+      // The approved Groom section contains one package; its content stays intact.
+      if ((values.audience === "groom") !== (id === groomServiceId)) throw new AppError("INVALID_DETAILS");
+      if (id === groomServiceId && (values.name !== existing?.name || values.category !== existing.category)) throw new AppError("INVALID_DETAILS");
+      const row = {
+        id, name: values.name, category: values.category, audiences: [values.audience], price: values.price,
+        status: "confirmed", is_custom: !defaultMenuServices.some(service => service.id === id),
+        is_hidden: !values.visible, sort_order: existing?.sortOrder ?? Math.max(0, ...catalogue.map(service => service.sortOrder)) + 10,
+      };
+      const result = await auth.from("menu_service_overrides").upsert(row, { onConflict: "id" }).select(menuServiceFields).single();
+      if (result.error) throw menuDatabaseError(result.error);
+      const service = mergeMenuServices([result.data as MenuServiceOverride]).find(service => service.id === id);
+      return reply({ service });
+    }
     if(action==="password") {
       const parsed=z.object({password:z.string().min(12).max(128)}).strict().safeParse(body);
       if(!parsed.success) throw new AppError("INVALID_PASSWORD");

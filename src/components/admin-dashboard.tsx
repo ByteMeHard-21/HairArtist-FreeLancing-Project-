@@ -100,7 +100,7 @@ export function AdminDashboard({availabilityOnly=false}:{availabilityOnly?:boole
   const groups=data?Object.groupBy(data.bookings||[],b=>b.appointment_date):{};
   return <main id="main" className="admin-page"><div className="booking-container">
     <header className="admin-heading"><div><Link href="/admin" className="wordmark"><span>JIAA STUDIO</span></Link><p className="eyebrow">Booking dashboard</p></div><div className="admin-account"><span>David</span><AdminLogout /></div></header>
-    <nav className="admin-tabs" aria-label="Studio navigation"><Link href="/admin" aria-current={!availabilityOnly?"page":undefined}>Appointments</Link><Link href="/admin/availability" aria-current={availabilityOnly?"page":undefined}>Availability</Link></nav>
+    <nav className="admin-tabs" aria-label="Studio navigation"><Link href="/admin" aria-current={!availabilityOnly?"page":undefined}>Appointments</Link><Link href="/admin/availability" aria-current={availabilityOnly?"page":undefined}>Availability</Link><Link href="/admin/menu">Service menu</Link></nav>
     {error&&<p className="booking-error" role="alert">{error}</p>}{notice&&<p className="booking-notice" role="status">{notice}</p>}
     {!data?<div className="booking-card"><p role="status">{loading?"Loading studio bookings…":"No data available."}</p><button className="booking-text-button" onClick={()=>setRefresh(v=>v+1)}>Try again</button></div>:<>
       {availabilityOnly?<div className="admin-settings">

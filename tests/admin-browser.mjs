@@ -10,7 +10,7 @@ import {indiaToday,dateRange} from "../src/data/booking.ts";
 const base="http://127.0.0.1:3100", backend="http://127.0.0.1:4319";
 const admin="11111111-1111-4111-8111-111111111111",other="22222222-2222-4222-8222-222222222222";
 const today=indiaToday(),future=dateRange(today)[2];
-let active=true,notices=null,exceptions=[];
+let active=true,notices=null,exceptions=[],menuRows=[],menuFailure=null;
 const mfaRequests=[];
 const tokens=new Map();
 function user(id){return {id,email:id===admin?"admin@example.test":"outsider@example.test",aud:"authenticated",role:"authenticated",created_at:new Date().toISOString(),app_metadata:{provider:"email"},user_metadata:{},factors:[]};}
@@ -60,6 +60,17 @@ const server=createServer(async(req,res)=>{
   }
   if(path.startsWith("/rest/v1/")){
     const table=path.split("/").at(-1);
+    if(table==="menu_service_overrides"){
+      if(menuFailure)return send({message:"Fixture database failure",code:menuFailure},503);
+      if(req.method==="POST"){
+        if(token?.id!==admin||!active)return send({message:"FORBIDDEN"},403);
+        menuRows=[...menuRows.filter(row=>row.id!==body.id),body];
+        return send(body);
+      }
+      const data=menuRows.filter(row=>match(row,url.searchParams)).sort((a,b)=>a.id.localeCompare(b.id));
+      const offset=Number(url.searchParams.get("offset")||0),limit=Number(url.searchParams.get("limit")||500);
+      return send(data.slice(offset,offset+limit));
+    }
     if(table==="bookings"){
       const data=rows.filter(r=>match(r,url.searchParams));
       if(req.headers.accept?.includes("vnd.pgrst.object"))return send(data[0]||null);
@@ -68,7 +79,7 @@ const server=createServer(async(req,res)=>{
     }
     if(table==="public_announcements"){
       if(req.method==="POST")notices=body;
-      return send(req.method==="GET"?notices:null);
+      return send(req.method==="GET"?(req.headers.accept?.includes("vnd.pgrst.object")?notices:(notices?[notices]:[])):null);
     }
     if(table==="availability_exceptions"){
       if(req.method==="POST")exceptions=[...exceptions.filter(e=>e.date!==body.date),{id:randomUUID(),...body}];
@@ -154,7 +165,84 @@ try{
   await expect(page.getByRole("heading",{name:"0 confirmed appointments",exact:true})).toBeVisible();
   assert.equal(rows[0].status,"CANCELLED");
   results.push("Exception add/reopen, public notice save, keep/cancel dialog, cancelled count exclusion.");
+  await page.getByRole("link",{name:"Service menu",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Services & prices"})).toBeVisible();
+  const menuPost=async(action,data,origin=base)=>{
+    if(origin!==base)return context.request.post(base+"/api/admin/"+action,{headers:{Origin:origin},data});
+    // Chromium permits Secure cookies on loopback HTTP; APIRequestContext does not.
+    const status=await page.evaluate(async({action,data})=>(await fetch("/api/admin/"+action,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)})).status,{action,data});
+    return {status:()=>status};
+  };
+  const validService={name:"Fixture Cut",category:"Haircut",audience:"men",price:200,visible:true};
+  assert.equal((await menuPost("service-create",{...validService,price:-5})).status(),400);
+  assert.equal((await menuPost("service-create",{...validService,id:"classic-cut"})).status(),400);
+  assert.equal((await menuPost("service-update",{...validService,id:"missing"})).status(),404);
+  assert.equal((await menuPost("service-create",validService,"https://outsider.invalid")).status(),403);
+  await page.getByRole("button",{name:"Edit Men Classic Haircut",exact:true}).click();
+  await page.getByLabel("Price (₹)",{exact:true}).fill("225");
+  await page.getByRole("button",{name:"Save service",exact:true}).click();
+  await expect(page.getByRole("status")).toContainText("Service saved");
+  await page.reload();
+  await expect(page.locator(".admin-service-row").filter({has:page.getByRole("button",{name:"Edit Men Classic Haircut",exact:true})})).toContainText("₹225");
+  const publicPage=await context.newPage(); publicPage.on("pageerror",e=>pageErrors.push(e.message));
+  await publicPage.goto(base+"/menu");
+  await expect(publicPage.locator("#menu-men").locator("..").locator("..").locator(".service-row").filter({hasText:"Classic Haircut"})).toContainText("₹225");
+  await publicPage.goto(base);
+  await expect(publicPage.locator(".service-preview .service-row").filter({hasText:"Classic Haircut"}).first()).toContainText("₹225");
+  await page.getByLabel("Service name",{exact:true}).fill("Fixture Textured Crop");
+  await page.getByLabel("Menu category",{exact:true}).fill("Special styling");
+  await page.getByRole("combobox",{name:/^For/}).selectOption("women");
+  await page.getByLabel("Price (₹)",{exact:true}).fill("999");
+  await page.getByRole("button",{name:"Add service",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Edit Women Fixture Textured Crop",exact:true})).toBeVisible();
+  await publicPage.goto(base+"/menu");
+  await publicPage.getByRole("button",{name:"Women",exact:true}).click();
+  await expect(publicPage.locator(".service-row").filter({hasText:"Fixture Textured Crop"})).toContainText("₹999");
+  await page.getByRole("button",{name:"Edit Women Fixture Textured Crop",exact:true}).click();
+  await page.getByLabel("Visible on the public menu").uncheck();
+  await page.getByRole("button",{name:"Save service",exact:true}).click();
+  await expect(page.getByRole("status")).toContainText("hidden");
+  await publicPage.reload();
+  await expect(publicPage.locator(".service-row").filter({hasText:"Fixture Textured Crop"})).toHaveCount(0);
+  await page.getByRole("button",{name:"Edit Groom Complete Groom Look",exact:true}).click();
+  await page.getByLabel("Price (₹)",{exact:true}).fill("2699");
+  await page.getByRole("button",{name:"Save service",exact:true}).click();
+  await expect(page.getByRole("status")).toContainText("Service saved");
+  await publicPage.reload();
+  await expect(publicPage.locator(".groom-package-price")).toContainText("₹2,699");
+  await publicPage.goto(base);
+  await expect(publicPage.locator(".groom-package-price")).toContainText("₹2,699");
+  for(const width of [360,390,768,1440]){
+    await page.setViewportSize({width,height:1000});
+    await page.screenshot({path:"qa/screenshots/admin/menu-"+width+".png",fullPage:true});
+    if(width===390||width===1440){
+      await page.evaluate(()=>window.scrollTo(0,0));
+      await page.screenshot({path:"qa/screenshots/admin/menu-viewport-"+width+".png"});
+    }
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.getByRole("button",{name:"Edit Men Classic Haircut",exact:true}).click();
+  await expect(page.locator(".admin-service-editor")).toBeFocused();
+  await expect(page.getByLabel("Price (₹)",{exact:true})).toBeInViewport();
+  await page.getByLabel("Price (₹)",{exact:true}).fill("250");
+  await page.getByRole("button",{name:"Save service",exact:true}).click();
+  await expect(page.getByRole("status")).toContainText("Service saved");
+  menuFailure="XX000";
+  await publicPage.reload();
+  await expect(publicPage.locator(".service-preview")).toContainText("temporarily unavailable");
+  await expect(publicPage.locator(".service-preview .service-row")).toHaveCount(0);
+  menuFailure="PGRST205";
+  await page.reload();
+  await expect(page.locator(".booking-error[role=alert]")).toContainText("database migration");
+  await expect(page.getByRole("button",{name:"Add service",exact:true})).toBeDisabled();
+  menuFailure=null;
+  await page.getByRole("button",{name:"Refresh",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Add service",exact:true})).toBeEnabled();
+  await publicPage.close();
+  results.push("Menu: edit/reload persisted price; homepage and full menu agree; add women's category/service; hide; Groom price; mobile save/focus; four widths without overflow; validation/origin guards; missing migration recovery; outage does not restore stale prices.");
   active=false;
+  assert.equal((await menuPost("service-create",validService)).status(),403);
   assert.equal((await apiGet(base+"/api/admin/dashboard")).status(),403);
   active=true;
   await page.getByRole("button",{name:"Log out",exact:true}).click();
@@ -182,6 +270,8 @@ try{
   const rejected=await outsider.request.post(base+"/api/admin/login",{headers:{Origin:base},data:{email:"outsider@example.test",password:"fixture-password"}});
   assert.equal(rejected.status(),403);
   assert.equal((await outsider.request.get(base+"/api/admin/dashboard")).status(),401);
+  assert.equal((await outsider.request.get(base+"/api/admin/services")).status(),401);
+  assert.equal((await outsider.request.post(base+"/api/admin/service-create",{headers:{Origin:base},data:validService})).status(),401);
   await outsider.close();
   assert.deepEqual(pageErrors,[]);
   assert.deepEqual(mfaRequests,[],"Sign-in and recovery must not request authenticator APIs");

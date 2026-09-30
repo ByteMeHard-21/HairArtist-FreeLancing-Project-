@@ -4,6 +4,9 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 const errors:Record<string,string> = {
+  INVALID_DETAILS:"Check the entered details and try again.",
+  NOT_FOUND:"This item is no longer available. Refresh the list and try again.",
+  MENU_NOT_CONFIGURED:"Menu editing needs the menu database migration. Apply 202609270001_menu_service_overrides.sql in Supabase, then refresh.",
   INVALID_LOGIN:"Email or password is incorrect.", FORBIDDEN:"This account is not authorized for studio access.",
   RATE_LIMITED:"Too many attempts. Please wait before trying again.", INVALID_PASSWORD:"Use a password of at least 12 characters.",
 };

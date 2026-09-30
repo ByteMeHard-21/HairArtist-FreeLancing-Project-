@@ -1,9 +1,8 @@
 export type Audience = "men" | "women" | "children" | "groom";
-export type ServiceCategory = "Haircut" | "Beard" | "Hair + Beard" | "Hair Styling" | "Hair Colour" | "Hair" | "Colour" | "Treatments" | "Grooming" | "Occasion styling" | "Hair Treatments" | "Occasion & Grooming";
 export type Service = {
   id: string;
   name: string;
-  category: ServiceCategory;
+  category: string;
   audiences: Audience[];
   price: number | null;
   // Approval of service content only; numeric prices may still be temporary.
@@ -85,7 +84,7 @@ export const audiences: { id: Audience; label: string; title: string }[] = [
 ];
 
 // Approved men’s category order first; existing draft categories remain supported.
-export const serviceCategories: ServiceCategory[] = ["Haircut", "Beard", "Hair + Beard", "Hair Styling", "Hair Colour", "Hair Treatments", "Occasion & Grooming", "Hair", "Colour", "Treatments", "Grooming", "Occasion styling"];
+export const serviceCategories: string[] = ["Haircut", "Beard", "Hair + Beard", "Hair Styling", "Hair Colour", "Hair Treatments", "Occasion & Grooming", "Hair", "Colour", "Treatments", "Grooming", "Occasion styling"];
 
 // Homepage selections reference the same services and prices as /menu.
 // Groom is a complete package, rendered alongside these individual service previews.

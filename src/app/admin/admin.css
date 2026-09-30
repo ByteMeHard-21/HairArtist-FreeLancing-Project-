@@ -1,4 +1,16 @@
 
+.admin-menu-layout{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr);gap:24px;align-items:start}
+.admin-service-editor{position:sticky;top:24px;scroll-margin-top:24px;min-width:0}
+.admin-service-list{min-width:0}.admin-service-form-fields{display:grid;gap:18px;border:0;padding:0;margin:0;min-width:0}
+.admin-service-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px;min-width:0}
+.admin-service-fields label{min-width:0}.admin-service-actions{display:flex;flex-wrap:wrap;gap:10px}
+.admin-service-group{margin-top:28px}.admin-service-group h3{font-family:var(--font-display);font-size:23px;font-weight:400;padding-bottom:12px}
+.admin-service-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 0;border-top:1px solid var(--line)}
+.admin-service-row>div{min-width:0}.admin-service-row strong{display:block;font-size:13px;overflow-wrap:anywhere;font-weight:500}
+.admin-service-row span{display:block;font-size:11px;color:var(--muted);margin-top:5px;overflow-wrap:anywhere}.admin-service-row button{flex-shrink:0}
+.admin-service-list .booking-card-heading{display:flex;justify-content:space-between;gap:12px;align-items:center}
+@media(max-width:899px){.admin-menu-layout{grid-template-columns:1fr}.admin-service-editor{position:static}}
+@media(max-width:599px){.admin-service-fields{grid-template-columns:1fr}}
 .admin-page{padding:36px 0 70px;background:var(--paper);min-height:100dvh}
 .admin-heading{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:24px}
 .admin-heading .eyebrow{margin-top:8px}.admin-account{display:flex;align-items:center;gap:20px}.admin-account>span{font-size:11px;text-transform:uppercase;letter-spacing:2px}

@@ -11,6 +11,7 @@ import { ContactSection } from "@/components/contact-section";
 import { Footer } from "@/components/footer";
 import { database } from "@/lib/booking-server";
 import { indiaToday } from "@/data/booking";
+import { getPublishedMenuServices } from "@/lib/menu-services-server";
 
 export const dynamic = "force-dynamic";
 
@@ -36,14 +37,14 @@ async function getActiveAnnouncement(): Promise<string | undefined> {
 }
 
 export default async function HomePage() {
-  const initialNotice = await getActiveAnnouncement();
+  const [initialNotice, menuServices] = await Promise.all([getActiveAnnouncement(), getPublishedMenuServices()]);
   return (
     <>
       <main id="main">
         <AvailabilityTicker initialNotice={initialNotice} />
         <Hero />
         <Portfolio />
-        <ServicePreview />
+        <ServicePreview services={menuServices} />
         <Artist />
         <Expertise />
         <Location />
